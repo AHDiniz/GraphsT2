@@ -121,11 +121,10 @@ private:
 
 int main()
 {
+	int n, m;
 	for (int i = 0; !std::cin.eof(); ++i)
 	{
 		std::cout << "Instancia " << i + 1 << std::endl;
-
-		int n, m;
 
 		std::cin >> n >> m;
 
@@ -146,7 +145,7 @@ int main()
 			continue;
 		}
 
-		std::cout << graph.dijkstra(0, n - 1) << std::endl << std::endl;
+		std::cout << graph.dijkstra(0, n - 1) * d << std::endl << std::endl;
 	}
 
 	return 0;
@@ -155,6 +154,7 @@ int main()
 Graph::Graph(int n, int m) : n(n), m(m), eCount(0)
 {
 	vertices.distance = (int *)malloc(sizeof(int) * n);
+	vertices.previous = (vertex *)malloc(sizeof(vertex) * n);
 	for (int i = 0; i < n; ++i)
 	{
 		vertices.distance[i] = INFINITY;
