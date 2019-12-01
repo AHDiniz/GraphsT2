@@ -1,9 +1,10 @@
-#include <cstdlib>
-#include <climits>
 #include <iostream>
-#include <functional>
+#include <cstdlib>
+#include <cstring>
+#include <climits>
 
-#define INFINITY (INT_MAX - 1000)
+#define INFINITY (INT_MAX / 2)
+#define ERROR -1
 
 template<typename T>
 inline void exch(T &a, T &b)
@@ -17,21 +18,22 @@ template<typename T>
 class Heap
 {
 public:
-	using PriorityFnc = std::function<const int(T)>;
-	Heap(const int n, PriorityFnc priority) : count(0), max(n + 1), priority(priority)
+	Heap(int n) : count(0), max(n)
 	{
-		items = (T *)malloc(sizeof(T) * (n + 1));
+		data = (T *)malloc(sizeof(T) * n);
+		priority = (int *)malloc(sizeof(int) * n);
+		memset(&data[0], 0, sizeof(T));
 	}
 
 	~Heap()
 	{
-		free(items);
+		free(data);
+		free(priority);
 		count = max = 0;
-		priority = nullptr;
-		items = nullptr;
+		data = priority = nullptr;
 	}
 
-	bool add(T item)
+	bool push(T item, int priority)
 	{
 		int top = ++count;
 		if (top > max)
@@ -39,7 +41,8 @@ public:
 			--count;
 			return false;
 		}
-		items[top] = item;
+		data[top] = item;
+		this->priority[top] = priority;
 		FixUp(top);
 		return true;
 	}
@@ -50,157 +53,186 @@ public:
 		if (count < 0)
 		{
 			count++;
-			return items[0];
+			return data[0];
 		}
-		T first = items[1];
-		exch(items[1], items[count + 1]);
+		T first = data[1];
+		exch(data[1], data[count + 1]);
+		exch(priority[1], priority[count + 1]);
 		FixDown(1);
 		return first;
 	}
 
-	inline const bool empty() const { return count <= 0; }
+	int get(T item)
+	{
+		for (int i = 0; i < count; ++i)
+			if (data[i] == item) return priority[i];
+		return -1;
+	}
+
+	void reset(T item, int priority)
+	{
+		for (int i = 0; i < count; ++i)
+		{
+			if (data[i] == item)
+			{
+				int prevPrio = this->priority[i];
+				if (prevPrio > priority) FixDown(i);
+				else FixUp(i);
+				break;
+			}
+		}
+	}
+
+	inline bool empty() const { return count == 0; }
+
+	bool contains(T item)
+	{
+		for (int i = 0; i < count; ++i)
+			if (data[i] == item) return true;
+		return false;
+	}
 
 private:
 	void FixUp(int pos)
 	{
-		while (pos > 1 && priority(items[pos / 2]) > priority(items[pos]))
+		while (pos > 2 && priority[pos / 2] > priority[pos])
 		{
-			exch(items[pos / 2], items[pos]);
+			exch(data[pos / 2], data[pos]);
+			exch(priority[pos / 2], priority[pos]);
 			pos /= 2;
 		}
 	}
-	
+
 	void FixDown(int pos)
 	{
 		while (2 * pos < count)
 		{
 			int j = 2 * pos;
-			if (j < count && priority(items[j]) > priority(items[j + 1])) ++j;
-			if (priority(items[pos]) <= priority(items[j])) break;
-			exch(items[pos], items[j]);
+			if (j < count && priority[j] > priority[j + 1]) ++j;
+			if (priority[pos] <= priority[j]) break;
+			exch(data[pos], data[j]);
+			exch(priority[pos], priority[j]);
 			pos = j;
 		}
 	}
 
-	PriorityFnc priority;
+	T *data;
+	int *priority;
 	int count, max;
-	T *items;
 };
 
 class Graph
 {
 public:
-	using vertex = int;
-	using edge = int;
-
 	Graph(int n, int m);
 	~Graph();
 
-	void set(int u, int v, int w);
-	
-	const int dijkstra(vertex start, vertex end) const;
+	inline void set(int u, int v, int w) { adj[u * n + v] = w; }
+	int get(int u, int v) const { return adj[u * n + v]; }
+
+	int *mst(void);
+	int maxFlow(int resources, int flow);
 
 private:
-	struct EdgeData
-	{
-		vertex *start;
-		vertex *end;
-		int *weight;
-	};
-	EdgeData edges;
-
-	struct VertexData
-	{
-		int *distance;
-		vertex *previous;
-	};
-	VertexData vertices;
-
-	int n, m, eCount;
+	int *adj;
+	int n, m;
 };
 
 int main()
 {
-	int n, m;
-	for (int i = 0; !std::cin.eof(); ++i)
+	for (int instance = 1; !std::cin.eof(); ++instance)
 	{
-		std::cout << "Instancia " << i + 1 << std::endl;
+		std::cout << "Instancia " << instance << std::endl;
 
+		int n, m;
 		std::cin >> n >> m;
 
 		Graph graph(n, m);
 
-		for (int i = 0; i < m; ++i)
+		for (int edge = 0; edge < m; ++edge)
 		{
 			int u, v, w;
 			std::cin >> u >> v >> w;
 			graph.set(u - 1, v - 1, w);
 		}
 
-		int d, k;
-		std::cin >> d >> k;
-		if (d < k)
-		{
-			std::cout << "impossivel" << std::endl << std::endl;
-			continue;
-		}
+		int resources, flow;
+		std::cin >> resources >> flow;
 
-		std::cout << graph.dijkstra(0, n - 1) * d << std::endl << std::endl;
+		int result = graph.maxFlow(resources, flow);
+		if (result == ERROR) std::cout << "impossivel" << std::endl << std::endl;
+		else std::cout << result << std::endl << std::endl;
 	}
 
 	return 0;
 }
 
-Graph::Graph(int n, int m) : n(n), m(m), eCount(0)
+Graph::Graph(int n, int m) : n(n), m(m)
 {
-	vertices.distance = (int *)malloc(sizeof(int) * n);
-	vertices.previous = (vertex *)malloc(sizeof(vertex) * n);
-	for (int i = 0; i < n; ++i)
-	{
-		vertices.distance[i] = INFINITY;
-		vertices.previous[i] = -1;
-	}
-	edges.start = (vertex *)malloc(sizeof(vertex) * m);
-	edges.end = (vertex *)malloc(sizeof(vertex) * m);
-	edges.weight = (int *)malloc(sizeof(int) * m);
+	adj = (int *)malloc(sizeof(int) * n * n);
+	memset(adj, 0, sizeof(int) * n * n);
 }
 
 Graph::~Graph()
 {
-	free(vertices.distance);
-	free(vertices.previous);
-	free(edges.start);
-	free(edges.end);
-	free(edges.weight);
+	free(adj);
+	n = m = 0;
+	adj = nullptr;
 }
 
-void Graph::set(int u, int v, int w)
+int *Graph::mst(void)
 {
-	edges.start[eCount] = u;
-	edges.end[eCount] = v;
-	edges.weight[eCount] = w;
-	++eCount;
-}
+	int *previous = (int *)malloc(sizeof(int) * n);
+	for (int i = 0; i < n; ++i) previous[i] = ERROR;
 
-const int Graph::dijkstra(vertex start, vertex end) const
-{
-	vertices.distance[start] = 0;
-	Heap<vertex> queue(n, [this](vertex v){
-		return vertices.distance[v];
-	});
-	for (vertex i = 0; i < n; ++i) queue.add(i);
+	Heap<int> queue(n);
+	for (int i = 0; i < n; ++i) queue.push(i, INFINITY);
+
 	while (!queue.empty())
 	{
-		vertex u = queue.pop();
-		for (edge e = 0; e < m; ++e)
+		int u = queue.pop();
+
+		for (int i = 0; i < n; ++i)
 		{
-			if (edges.start[e] == u || edges.end[e] == u)
+			if (get(u, i) && queue.contains(i) && get(u, i) < queue.get(i))
 			{
-				edge v = (edges.start[e] == u) ? edges.end[e] : edges.start[e];
-				int cost = vertices.distance[u] + edges.weight[e];
-				vertices.distance[v] = (cost < vertices.distance[v]) ? cost : vertices.distance[v];
+				previous[i] = u;
+				std::cout << "(" << previous[i] << ", " << i << ")" << std::endl;
+				queue.reset(i, get(u, i));
 			}
 		}
 	}
-	return vertices.distance[end];
+
+	return previous;
+}
+
+int Graph::maxFlow(int resources, int flow)
+{
+	int result = 0;
+
+	int *previous = mst();
+	if (previous[n - 1] == ERROR) return ERROR;
+
+	if (resources < flow)
+	{
+		for (int i = n - 1; i > 0; i = previous[i])
+			result += get(previous[i], i);
+	}
+	else
+	{
+		while (resources > 0 && previous[n - 1] != ERROR)
+		{
+			for (int i = n - 1; i > 0; i = previous[i])
+			{
+				result += get(previous[i], i);
+				set(previous[i], i, 0);
+			}
+			free(previous);
+			previous = mst();
+		}
+		if (resources > 0) resources = ERROR;
+	}
+	
+	free(previous);
+	return result;
 }
